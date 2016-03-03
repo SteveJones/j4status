@@ -122,14 +122,74 @@ _j4status_sensors_feature_free(gpointer data)
     g_free(feature);
 }
 
-static void
-_j4status_sensors_add_feature_temp(J4statusPluginContext *context, const sensors_chip_name *chip, const sensors_feature *feature)
+static char *
+_j4status_sensors_get_feature_name(const sensors_chip_name *chip, const sensors_feature *feature)
 {
     int n;
-    char name[MAX_CHIP_NAME_SIZE + strlen(feature->name) + 1];
+    char *name = malloc(MAX_CHIP_NAME_SIZE + strlen(feature->name) + 1);
     n = sensors_snprintf_chip_name(name, MAX_CHIP_NAME_SIZE, chip);
     name[n++] = '/';
     strcpy(name + n, feature->name);
+
+    return name;
+}
+
+static void
+_j4status_sensors_add_feature_fan(J4statusPluginContext *context, const sensors_chip_name *chip, const sensors_feature *feature)
+{
+    const char *name = _j4status_sensors_get_feature_name(chip, feature);
+
+    const sensors_subfeature *input;
+
+    input = sensors_get_subfeature(chip, feature, SENSORS_SUBFEATURE_FAN_INPUT);
+    if ( input == NULL )
+    {
+        g_warning("No fan input on chip '%s', skipping", name);
+        free(name);
+        return;
+    }
+
+    J4statusSensorsFeature *sensor_feature;
+    sensor_feature = g_new0(J4statusSensorsFeature, 1);
+    sensor_feature->section = j4status_section_new(context->core);
+    sensor_feature->chip = chip;
+    sensor_feature->feature = feature;
+    sensor_feature->max = sensors_get_subfeature(chip, feature, SENSORS_SUBFEATURE_FAN_MAX);
+    sensor_feature->crit = NULL;
+
+    const char *label;
+    label = sensors_get_label(chip, feature);
+
+    gint64 max_width = strlen("10000rpm");
+    if ( context->config.show_details )
+    {
+        if ( sensor_feature->max != NULL )
+        {
+            char max_str[256];
+            int value = sensor_feature->max->number;
+            snprintf(max_str, sizeof(max_str), "%irpm max = %irpm", value, value);
+            max_width = strlen(max_str);
+        }
+    }
+
+    j4status_section_set_name(sensor_feature->section, "sensors");
+    j4status_section_set_instance(sensor_feature->section, name);
+    j4status_section_set_label(sensor_feature->section, label);
+    j4status_section_set_max_width(sensor_feature->section, -max_width);
+
+    free(label);
+    free(name);
+
+    if ( j4status_section_insert(sensor_feature->section) )
+        context->sections = g_list_prepend(context->sections, sensor_feature);
+    else
+        _j4status_sensors_feature_free(sensor_feature);
+}
+
+static void
+_j4status_sensors_add_feature_temp(J4statusPluginContext *context, const sensors_chip_name *chip, const sensors_feature *feature)
+{
+    const char *name = _j4status_sensors_get_feature_name(chip, feature);
 
     const sensors_subfeature *input;
 
@@ -137,6 +197,7 @@ _j4status_sensors_add_feature_temp(J4statusPluginContext *context, const sensors
     if ( input == NULL )
     {
         g_warning("No temperature input on chip '%s', skipping", name);
+        free(name);
         return;
     }
 
@@ -169,6 +230,7 @@ _j4status_sensors_add_feature_temp(J4statusPluginContext *context, const sensors
     j4status_section_set_max_width(sensor_feature->section, -max_width);
 
     free(label);
+    free(name);
 
     if ( j4status_section_insert(sensor_feature->section) )
         context->sections = g_list_prepend(context->sections, sensor_feature);
@@ -190,6 +252,9 @@ _j4status_sensors_add_sensors(J4statusPluginContext *context, const sensors_chip
             switch (feature->type) {
             case SENSORS_FEATURE_TEMP:
                 _j4status_sensors_add_feature_temp(context, chip, feature);
+            break;
+            case SENSORS_FEATURE_FAN:
+                _j4status_sensors_add_feature_fan(context, chip, feature);
             break;
             default:
                 continue;
