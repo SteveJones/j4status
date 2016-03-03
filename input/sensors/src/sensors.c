@@ -210,8 +210,9 @@ _j4status_sensors_add_feature_fan(J4statusPluginContext *context, const sensors_
         if ( sensor_feature->max != NULL )
         {
             char max_str[256];
-            int value = sensor_feature->max->number;
-            snprintf(max_str, sizeof(max_str), "%irpm max = %irpm", value, value);
+            double value;
+            sensors_get_value(sensor_feature->chip, sensor_feature->max->number, &value);
+            snprintf(max_str, sizeof(max_str), "%.0frpm max = %.0frpm", value, value);
             max_width = strlen(max_str);
         }
     }
