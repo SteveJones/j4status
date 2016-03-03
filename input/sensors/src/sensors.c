@@ -137,7 +137,7 @@ _j4status_sensors_get_feature_name(const sensors_chip_name *chip, const sensors_
 static void
 _j4status_sensors_add_feature_fan(J4statusPluginContext *context, const sensors_chip_name *chip, const sensors_feature *feature)
 {
-    const char *name = _j4status_sensors_get_feature_name(chip, feature);
+    char *name = _j4status_sensors_get_feature_name(chip, feature);
 
     const sensors_subfeature *input;
 
@@ -157,7 +157,7 @@ _j4status_sensors_add_feature_fan(J4statusPluginContext *context, const sensors_
     sensor_feature->max = sensors_get_subfeature(chip, feature, SENSORS_SUBFEATURE_FAN_MAX);
     sensor_feature->crit = NULL;
 
-    const char *label;
+    char *label;
     label = sensors_get_label(chip, feature);
 
     gint64 max_width = strlen("10000rpm");
@@ -189,7 +189,7 @@ _j4status_sensors_add_feature_fan(J4statusPluginContext *context, const sensors_
 static void
 _j4status_sensors_add_feature_temp(J4statusPluginContext *context, const sensors_chip_name *chip, const sensors_feature *feature)
 {
-    const char *name = _j4status_sensors_get_feature_name(chip, feature);
+    char *name = _j4status_sensors_get_feature_name(chip, feature);
 
     const sensors_subfeature *input;
 
