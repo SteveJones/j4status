@@ -49,6 +49,7 @@ struct _J4statusPluginContext {
 
 typedef struct {
     J4statusSection *section;
+
     const sensors_chip_name *chip;
     const sensors_feature *feature;
     const sensors_subfeature *input;
@@ -100,14 +101,56 @@ _j4status_sensors_feature_temp_update(J4statusPluginContext *context, J4statusSe
     j4status_section_set_value(feature->section, value);
 }
 
+static void
+_j4status_sensors_feature_fan_update(J4statusPluginContext *context, J4statusSensorsFeature *feature)
+{
+    double curr;
+    sensors_get_value(feature->chip, feature->input->number, &curr);
+
+    double high = -1;
+    if ( feature->max != NULL )
+        sensors_get_value(feature->chip, feature->max->number, &high);
+
+    J4statusState state;
+
+    if ( ( high > 0 ) && ( curr > high ) )
+        state = J4STATUS_STATE_BAD;
+    else
+        state = J4STATUS_STATE_GOOD;
+
+    j4status_section_set_state(feature->section, state);
+
+    if ( ! context->config.show_details )
+        high = -1;
+
+    gchar *value;
+    if ( high > 0 )
+        value = g_strdup_printf("%.0frpm (high = %.0frpm)", curr, high);
+    else
+        value = g_strdup_printf("%.0frpm", curr);
+
+    j4status_section_set_value(feature->section, value);
+}
+
 static gboolean
 _j4status_sensors_update(gpointer user_data)
 {
     J4statusPluginContext *context = user_data;
 
-    GList *feature;
-    for ( feature = context->sections ; feature != NULL ; feature = g_list_next(feature) )
-        _j4status_sensors_feature_temp_update(context, feature->data);
+    GList *feature_iter;
+    for ( feature_iter = context->sections ; feature_iter != NULL ; feature_iter = g_list_next(feature_iter) ) {
+        J4statusSensorsFeature *feature = feature_iter->data;
+        switch ( feature->feature->type ) {
+        case SENSORS_FEATURE_TEMP:
+            _j4status_sensors_feature_temp_update(context, feature);
+        break;
+        case SENSORS_FEATURE_FAN:
+            _j4status_sensors_feature_fan_update(context, feature);
+        break;
+        default:
+            g_warning("Unknown feature type in update: %i", feature->feature->type);
+        }
+    }
 
     return TRUE;
 }
@@ -154,6 +197,7 @@ _j4status_sensors_add_feature_fan(J4statusPluginContext *context, const sensors_
     sensor_feature->section = j4status_section_new(context->core);
     sensor_feature->chip = chip;
     sensor_feature->feature = feature;
+    sensor_feature->input = input;
     sensor_feature->max = sensors_get_subfeature(chip, feature, SENSORS_SUBFEATURE_FAN_MAX);
     sensor_feature->crit = NULL;
 
